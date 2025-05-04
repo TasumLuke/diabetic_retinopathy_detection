@@ -1,6 +1,3 @@
-# Diabetic_retinopathy_Detection
-Building a Machine Learning Model for Predicting Diabetic Retinopathy
-
 # Diabetic Retinopathy Detection
 
 This repository contains a complete pipeline for detecting diabetic retinopathy from retinal images using deep learning.
@@ -54,41 +51,53 @@ Or install them manually:
 ```bash
 pip install tensorflow==2.12.0
 pip install pandas==2.0.3
-
-## 🚀 3. Execution Workflow
-
-After training, follow these steps to evaluate your model:
-
-### 🔍 Run Evaluation
-
-```bash
-python src/evaluate.py
-```
-
-### 📈 View Results
-
-#### Text Metrics
-
-```bash
-cat outputs/evaluation/metrics.txt
-```
-
-#### Visualizations
-
-```bash
-# For macOS
-open outputs/evaluation/confusion_matrix.png
-
-# For Linux
-xdg-open outputs/evaluation/confusion_matrix.png
-
-# For Windows
-start outputs/evaluation/confusion_matrix.png
-```
-
 pip install opencv-python-headless==4.7.0.72
 pip install albumentations==1.3.0
 pip install scikit-learn==1.3.0
 pip install tqdm==4.66.1
 pip install matplotlib==3.7.1
 ```
+
+## 💻 3. Command-Line Workflow (This one is just for Windows, idk if you use Windows or nah)
+
+### A. Open Command Prompt
+
+```cmd
+cd C:\DIABETIC_RETINOPATHY
+```
+
+### B. Set Up Virtual Environment
+
+```cmd
+python -m venv venv
+venv\Scripts\activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### C. Prepare Data
+
+Place all ZIP files in `data/raw/`, then run:
+
+```cmd
+python src/data_preparation.py
+```
+
+### D. Start Training
+
+```cmd
+python src/train.py
+```
+
+### E. Evaluate Model
+
+```cmd
+python src/evaluate.py
+```
+
+### F. Generate Predictions
+
+```cmd
+python src/predict.py
+```
+
