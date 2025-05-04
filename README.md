@@ -1,6 +1,6 @@
 # Diabetic Retinopathy Detection
 
-This repository contains a complete pipeline for detecting diabetic retinopathy from retinal images using deep learning.
+This repository contains a complete pipeline for detecting diabetic retinopathy from retinal images using machine learning.
 
 ## 📁 Project Structure
 
