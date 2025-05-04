@@ -54,6 +54,38 @@ Or install them manually:
 ```bash
 pip install tensorflow==2.12.0
 pip install pandas==2.0.3
+
+## 🚀 3. Execution Workflow
+
+After training, follow these steps to evaluate your model:
+
+### 🔍 Run Evaluation
+
+```bash
+python src/evaluate.py
+```
+
+### 📈 View Results
+
+#### Text Metrics
+
+```bash
+cat outputs/evaluation/metrics.txt
+```
+
+#### Visualizations
+
+```bash
+# For macOS
+open outputs/evaluation/confusion_matrix.png
+
+# For Linux
+xdg-open outputs/evaluation/confusion_matrix.png
+
+# For Windows
+start outputs/evaluation/confusion_matrix.png
+```
+
 pip install opencv-python-headless==4.7.0.72
 pip install albumentations==1.3.0
 pip install scikit-learn==1.3.0
