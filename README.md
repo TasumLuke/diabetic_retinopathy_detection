@@ -101,3 +101,13 @@ python src/evaluate.py
 python src/predict.py
 ```
 
+## 🛠️  Issues I ran into and how to fix
+
+| **Issue**              | **Solution**                                                                 |
+|------------------------|------------------------------------------------------------------------------|
+| CUDA Out of Memory     | Reduce `BATCH_SIZE` in `config.py` (e.g., set to 4 or 8)                      |
+| Missing ZIP Parts      | Ensure all required ZIP parts are present in `data/raw/`                     |
+| DLL Load Failed        | Install [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
+| Slow Training          | Disable GPU by setting `CUDA_VISIBLE_DEVICES=-1`                             |
+| File Path Errors       | Use absolute file paths in `config.py`                                       |
+| Corrupt ZIP Files      | Re-download the affected ZIP parts                                            |
