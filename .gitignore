@@ -1,0 +1,6 @@
+.DS_Store
+diabetic-retinopathy-detection
+src/__pycache__/
+data/*
+outputs/*
+.vscode/*

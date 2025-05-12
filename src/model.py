@@ -1,6 +1,8 @@
 import tensorflow as tf
-from tensorflow.keras import layers, Model
+from tensorflow import keras
+from tensorflow.keras import layers, Model # type: ignore
 from config import IMG_SIZE, NUM_CLASSES
+
 
 def build_model():
     base_model = tf.keras.applications.EfficientNetB3(
@@ -8,12 +10,9 @@ def build_model():
         weights="imagenet",
         input_shape=(IMG_SIZE, IMG_SIZE, 3)
     )
-    
-    # Freeze initial layers
     for layer in base_model.layers[:-15]:
         layer.trainable = False
 
-    # Custom head
     x = layers.GlobalAveragePooling2D()(base_model.output)
     x = layers.Dense(512, activation="relu")(x)
     x = layers.Dropout(0.5)(x)

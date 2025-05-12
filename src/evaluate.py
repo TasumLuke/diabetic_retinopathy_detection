@@ -1,115 +1,148 @@
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import (
-    classification_report,
-    confusion_matrix,
-    roc_curve,
-    auc,
-    roc_auc_score
-)
-from config import *
-from pathlib import Path
 import tensorflow as tf
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import GroupKFold
+from sklearn.metrics import cohen_kappa_score, classification_report, confusion_matrix, roc_curve, auc
+from sklearn.preprocessing import LabelBinarizer
+import seaborn as sns
+import matplotlib.pyplot as plt
+from pathlib import Path
+from config import *
+output_path = Path(BASE_DIR) / "outputs" / "evaluation"
+output_path.mkdir(parents=True, exist_ok=True)
+
+
+def create_dataset(df, augment=False):
+    def data_generator():
+        paths = df["path"].values
+        labels_values = df["level"].values
+        for path, label in zip(paths, labels_values):
+            try:
+                img = tf.io.read_file(path)
+                img = tf.image.decode_jpeg(img, channels=3)
+                img = tf.image.resize(img, [IMG_SIZE, IMG_SIZE])
+                img = tf.keras.applications.efficientnet.preprocess_input(img)
+                yield img, tf.one_hot(label, NUM_CLASSES)
+            except tf.errors.NotFoundError:
+                tf.print(
+                    f"Warning (Eval - Generator): File not found - Skipping: {path}")
+            except tf.errors.InvalidArgumentError:
+                tf.print(
+                    f"Warning (Eval - Generator): Invalid JPEG data - Skipping: {path}")
+
+    dataset = tf.data.Dataset.from_generator(
+        data_generator,
+        output_signature=(
+            tf.TensorSpec(shape=(IMG_SIZE, IMG_SIZE, 3), dtype=tf.float32),
+            tf.TensorSpec(shape=(NUM_CLASSES,), dtype=tf.float32)
+        )
+    )
+    return dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+
 
 def evaluate_model():
-    # Load model
     model = tf.keras.models.load_model(MODEL_SAVE_PATH)
-    
-    # Load validation data
-    labels = pd.read_csv(PROCESSED_DATA_DIR / "trainLabels.csv")
-    _, val_idx = next(GroupKFold(n_splits=5).split(labels, groups=labels["id"]))
-    val_df = labels.iloc[val_idx]
-    
-    # Create dataset
-    val_ds = tf.data.Dataset.from_tensor_slices((
-        [str(TRAIN_DIR / f"{row.id}_{row.laterality}.jpeg") for _, row in val_df.iterrows()],
-        val_df["diagnosis"].values
-    ))
-    
-    # Preprocess function
-    def preprocess(path, label):
-        img = tf.io.read_file(path)
-        img = tf.image.decode_jpeg(img, channels=3)
-        img = tf.image.resize(img, [IMG_SIZE, IMG_SIZE])
-        img = tf.keras.applications.efficientnet.preprocess_input(img)
-        return img, label
-    
-    val_ds = val_ds.map(preprocess).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    
-    # Get predictions
-    y_true = np.concatenate([y for _, y in val_ds])
-    y_pred = model.predict(val_ds)
-    y_pred_classes = np.argmax(y_pred, axis=1)
-    
-    # Create evaluation directory
-    eval_dir = BASE_DIR / "outputs" / "evaluation"
-    eval_dir.mkdir(exist_ok=True)
-    
-    # 1. Classification Report
-    report = classification_report(
-        y_true,
-        y_pred_classes,
-        target_names=["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
-    )
-    with open(eval_dir / "metrics.txt", "w") as f:
-        f.write("Classification Report:\n")
-        f.write(report)
-        f.write("\n\nConfusion Matrix:\n")
-        f.write(str(confusion_matrix(y_true, y_pred_classes)))
-    
-    # 2. Confusion Matrix
-    plt.figure(figsize=(10,8))
-    cm = confusion_matrix(y_true, y_pred_classes)
-    sns.heatmap(cm, annot=True, fmt="d", 
-                xticklabels=["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
-                yticklabels=["No DR", "Mild", "Moderate", "Severe", "Proliferative"])
-    plt.title("Confusion Matrix")
-    plt.xlabel("Predicted")
-    plt.ylabel("True")
-    plt.savefig(eval_dir / "confusion_matrix.png")
-    plt.close()
-    
-    # 3. ROC Curves
-    plt.figure(figsize=(10,8))
-    fpr = dict()
-    tpr = dict()
-    roc_auc = dict()
-    
-    # One-vs-Rest ROC curves
-    for i in range(NUM_CLASSES):
-        fpr[i], tpr[i], _ = roc_curve((y_true == i).astype(int), y_pred[:, i])
-        roc_auc[i] = auc(fpr[i], tpr[i])
-        
-    colors = ['blue', 'green', 'red', 'cyan', 'magenta']
-    for i, color in zip(range(NUM_CLASSES), colors):
-        plt.plot(fpr[i], tpr[i], color=color,
-                 label=f'Class {i} (AUC = {roc_auc[i]:.2f})')
-    
-    plt.plot([0, 1], [0, 1], 'k--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curves (One-vs-Rest)')
-    plt.legend(loc="lower right")
-    plt.savefig(eval_dir / "roc_curves.png")
-    plt.close()
-    
-    # 4. Additional Metrics
-    macro_f1 = f1_score(y_true, y_pred_classes, average='macro')
-    weighted_f1 = f1_score(y_true, y_pred_classes, average='weighted')
-    kappa = cohen_kappa_score(y_true, y_pred_classes)
-    
-    with open(eval_dir / "metrics.txt", "a") as f:
-        f.write(f"\n\nAdditional Metrics:\n")
-        f.write(f"Macro F1: {macro_f1:.4f}\n")
-        f.write(f"Weighted F1: {weighted_f1:.4f}\n")
-        f.write(f"Cohen's Kappa: {kappa:.4f}\n")
-        f.write(f"ROC AUC (Macro): {roc_auc_score(y_true, y_pred, multi_class='ovo', average='macro'):.4f}")
 
-    print("Evaluation complete! Results saved in outputs/evaluation/")
+    labels = pd.read_csv(PROCESSED_DATA_DIR / "trainLabels.csv")
+    labels["id"] = labels["image"].apply(lambda x: x.split("_")[0])
+    labels["path"] = labels.apply(
+        lambda x: str(
+            TRAIN_DIR / f"{x['image'].split('_')[0]}_{x['image'].split('_')[1]}.jpeg"),
+        axis=1
+    )
+    _, val_idx = next(GroupKFold(n_splits=5).split(
+        labels, groups=labels["id"]))
+    val_df = labels.iloc[val_idx].reset_index(drop=True)
+
+    valid_predictions = []
+    valid_true_labels_final = []
+
+    def data_generator():
+        paths = val_df["path"].values
+        true_labels = val_df["level"].values
+        for path, label in zip(paths, true_labels):
+            try:
+                img = tf.io.read_file(path)
+                img = tf.image.decode_jpeg(img, channels=3)
+                img = tf.image.resize(img, [IMG_SIZE, IMG_SIZE])
+                img = tf.keras.applications.efficientnet.preprocess_input(img)
+                prediction = model.predict(tf.expand_dims(img, axis=0))[0]
+                valid_predictions.append(prediction)
+                valid_true_labels_final.append(label)
+                yield img  
+            except (tf.errors.NotFoundError, tf.errors.InvalidArgumentError) as e:
+                tf.print(
+                    f"Warning (Eval - Generator): Skipping {path} due to error: {e}")
+
+    val_ds = tf.data.Dataset.from_generator(
+        data_generator,
+        output_signature=tf.TensorSpec(
+            shape=(IMG_SIZE, IMG_SIZE, 3), dtype=tf.float32)
+    ).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    for _ in val_ds:
+        pass
+
+    predicted_classes = np.argmax(np.array(valid_predictions), axis=1)
+    true_classes = np.array(valid_true_labels_final)
+
+    print(
+        f"y_true shape: {len(true_classes)}, y_pred shape: {len(predicted_classes)}")
+    if len(true_classes) > 0 and len(predicted_classes) > 0 and len(true_classes) == len(predicted_classes):
+        kappa = cohen_kappa_score(
+            true_classes, predicted_classes, weights="quadratic")
+        print(f"Quadratic Kappa Score: {kappa:.4f}")
+
+        print("\nClassification Report:")
+        print(classification_report(true_classes, predicted_classes,
+              target_names=["No DR", "Mild", "Moderate",
+                            "Severe", "Proliferative"], zero_division=1))
+
+        # 2. Confusion Matrix
+        plt.figure(figsize=(10, 8))
+        cm = confusion_matrix(true_classes, predicted_classes)
+        sns.heatmap(cm, annot=True, fmt="d",
+                    xticklabels=["No DR", "Mild", "Moderate",
+                                 "Severe", "Proliferative"],
+                    yticklabels=["No DR", "Mild", "Moderate", "Severe", "Proliferative"])
+        plt.title("Confusion Matrix")
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.savefig(output_path / "confusion_matrix.png") 
+        plt.close()
+
+        # 3. ROC Curves
+        plt.figure(figsize=(10, 8))
+        lb = LabelBinarizer()
+        lb.fit(true_classes)
+        y_true_bin = lb.transform(true_classes)
+        y_pred_bin = np.array(valid_predictions)
+
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        for i in range(NUM_CLASSES):
+            fpr[i], tpr[i], _ = roc_curve(y_true_bin[:, i], y_pred_bin[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+
+        colors = ['blue', 'red', 'green', 'orange', 'purple']
+        class_names = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
+        for i, color in zip(range(NUM_CLASSES), colors):
+            plt.plot(fpr[i], tpr[i], color=color, lw=2,
+                     label=f'ROC curve of class {class_names[i]} (area = {roc_auc[i]:.2f})')
+
+        plt.plot([0, 1], [0, 1], 'k--', lw=2)
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC) Curves')
+        plt.legend(loc="lower right")
+        plt.savefig(output_path / "roc_curves.png")
+        plt.close()
+
+    else:
+        print("Warning: No valid predictions could be made due to missing files.")
+
 
 if __name__ == "__main__":
     evaluate_model()

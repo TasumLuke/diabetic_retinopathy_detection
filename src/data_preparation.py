@@ -4,53 +4,50 @@ import sys
 from tqdm import tqdm
 from config import RAW_DATA_DIR, PROCESSED_DATA_DIR
 
-def combine_zips(zip_prefix, num_parts, output_name):
-    """Combine multi-part zip files"""
-    if sys.platform == "win32":
-        os.system(f'copy /b "{zip_prefix}.*" "{output_name}"')
-    else:
-        os.system(f'cat "{zip_prefix}".* > "{output_name}"')
 
 def extract_zip(zip_path, extract_to):
-    """Extract files with progress bar"""
-    with zipfile.ZipFile(zip_path) as zip_ref:
-        members = zip_ref.infolist()
-        for member in tqdm(members, desc=f"Extracting {os.path.basename(zip_path)}"):
-            try:
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:  # Explicitly open in read mode
+            members = zip_ref.infolist()
+            for member in tqdm(members, desc=f"Extracting {os.path.basename(zip_path)}"):
                 zip_ref.extract(member, extract_to)
-            except zipfile.BadZipFile:
-                print(f"Skipped corrupt file: {member.filename}")
+    except zipfile.BadZipFile as e:
+        print(
+            f"Error: {zip_path} is not a valid ZIP file or is corrupted.  Skipping. Error Details: {e}")
+        return  
+
+    except FileNotFoundError as e:
+        print(
+            f"Error: {zip_path} not found.  Make sure the file exists. Error Details: {e}")
+        sys.exit(1) 
+
 
 if __name__ == "__main__":
-    # Create processed directories
-    (PROCESSED_DATA_DIR / "train").mkdir(parents=True, exist_ok=True)
-    (PROCESSED_DATA_DIR / "test").mkdir(parents=True, exist_ok=True)
+    try:
+        os.makedirs(os.path.join(PROCESSED_DATA_DIR, "train"), exist_ok=True)
+        os.makedirs(os.path.join(PROCESSED_DATA_DIR, "test"), exist_ok=True)
+    except OSError as e:
+        print(f"Error creating directories: {e}")
+        sys.exit(1)
+    train_zip_path = os.path.join(RAW_DATA_DIR, "train.zip")
+    test_zip_path = os.path.join(RAW_DATA_DIR, "test.zip")
 
-    # Process training data
-    train_zip = RAW_DATA_DIR / "train.zip"
-    combine_zips(
-        str(RAW_DATA_DIR / "train.zip"), 
-        5,
-        str(PROCESSED_DATA_DIR / "full_train.zip")
-    )
+    if not os.path.exists(train_zip_path):
+        print(
+            f"Error: {train_zip_path} not found.  Make sure the file exists.")
+        sys.exit(1)
+    if not os.path.exists(test_zip_path):
+        print(f"Error: {test_zip_path} not found.  Make sure the file exists.")
+        sys.exit(1)
     extract_zip(
-        str(PROCESSED_DATA_DIR / "full_train.zip"),
+        train_zip_path,
         str(PROCESSED_DATA_DIR / "train")
     )
-
-    # Process test data
-    combine_zips(
-        str(RAW_DATA_DIR / "test.zip"), 
-        7,
-        str(PROCESSED_DATA_DIR / "full_test.zip")
-    )
     extract_zip(
-        str(PROCESSED_DATA_DIR / "full_test.zip"),
+        test_zip_path,
         str(PROCESSED_DATA_DIR / "test")
     )
-
-    # Extract labels
     extract_zip(
-        str(RAW_DATA_DIR / "trainLabels.csv.zip"),
+        os.path.join(RAW_DATA_DIR, "trainLabels.csv.zip"),
         str(PROCESSED_DATA_DIR)
     )
