@@ -17,6 +17,7 @@ diabetic_retinopathy_detection/
 │       └── test/              # Extracted test images
 ├── src/
 │   ├── data_preparation.py    # Data preprocessing scripts
+│   ├── config.py                  # Configuration file
 │   ├── model.py               # Model architecture
 │   ├── train.py               # Model training
 │   └── predict.py             # Inference script
@@ -24,7 +25,6 @@ diabetic_retinopathy_detection/
 │   ├── models/                # Saved model checkpoints
 │   ├── logs/                  # Training logs
 │   └── submissions/           # Prediction outputs
-├── config.py                  # Configuration file
 └── requirements.txt           # Python dependencies
 ```
 
